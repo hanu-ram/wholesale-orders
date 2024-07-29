@@ -1,0 +1,31 @@
+plugins {
+    id "java"
+}
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok:1.18.24'
+    api 'org.projectlombok:lombok:1.18.24'
+    api group: 'com.amazonaws', name: 'aws-lambda-java-core', version: '1.2.1'
+    api group: 'com.amazonaws', name: 'aws-lambda-java-events', version: '3.9.0'
+    implementation group: 'com.amazonaws', name: 'aws-java-sdk-lambda', version: '1.12.147'
+    api group: 'com.opencsv', name: 'opencsv', version: '5.5'
+    api 'org.slf4j:slf4j-simple:2.0.0'
+    api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.13.4'
+    testImplementation("org.mockito:mockito-inline:3.9.0")
+}
+
+bootJar{
+    enabled = false
+}
+jar{
+    enabled = true
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.test.doLast {
+    println "Build Complete with Test cases"
+}
