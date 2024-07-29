@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+    
+    /*
+    Expected variables
+    environment: name of the environment
+    region: AWS region
+    lambda_deploy: whether to deploy lambda or not
+    deploy_job_name: jenkins job to deploy
+    service: name of the service to deploy
+    */
+    
+    environment {
+        deploy_version = "wholesale-microservice/lambda/${service}/${service}-${BUILD_NUMBER}.zip"
+        project_dir  = "wholesale-orders/"
+        
+    }
+
+    stages {
+
+        stage ('Git Checkout') {
+            steps {
+                step([$class: 'WsCleanup'])
+                checkout scm
+            }
+        }
+
+        stage ('Gradle Build') {
+            steps {
+                dir(project_dir) {
+                    sh './gradlew ${service}:buildZip'
+                    sh 'sudo mv ./${service}/build/distributions/${service}-0.0.1-SNAPSHOT.zip ${service}-${BUILD_NUMBER}.zip'                     
+                }
+            }
+        }
+        
+        stage ('Copy Artifacts') {
+            steps {
+                dir(project_dir) {
+                    sh 'aws s3 cp ${service}-${BUILD_NUMBER}.zip s3://${s3_bucket}/wholesale-microservice/lambda/${service}/'
+                }
+            }
+        }
+
+        stage ('Deploy Lambda') {
+            when {
+                expression {params.lambda_deploy == 'true' }
+            }
+            steps {
+                script {
+                    build (job: "${deploy_job_name}", wait: true,
+                    parameters: [
+                    string(name: 'environment', value: environment),
+                    string(name: 'lambda_s3_key', value: deploy_version),
+                    string(name: 'service', value: service),
+                    string(name: 'region', value: region),
+                    string(name: 'bucket', value: bucket)
+                    ])
+                }
+            }
+        }
+    }    
+}

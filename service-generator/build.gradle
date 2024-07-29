@@ -1,0 +1,38 @@
+apply plugin: "java"
+ext {
+    javaMainClass = "com.levi.generator.Application"
+}
+
+
+dependencies {
+    api "com.github.spullara.mustache.java:compiler:0.8.18"
+}
+
+task generate {
+    doLast {
+        javaexec {
+            def modules = ['microservice', 'util', 'consumer', 'producer']
+            def moduleType = project.hasProperty('moduleType') ? project.property('moduleType') : 'microservice'
+            if (!modules.contains(moduleType)) {
+                throw new GradleException("moduleType can be one of ${modules}")
+            }
+            def moduleName = project.hasProperty('moduleName') ? project.property('moduleName') : ''
+            if (!project.hasProperty('moduleName')) {
+                throw new GradleException("moduleName is mendatory")
+            }
+            def projects = rootProject.subprojects.findAll { it.name == moduleName }
+            if (!projects.isEmpty()) {
+                throw new GradleException("module ${moduleName} already exists")
+            }
+            group = "Execution"
+            description = "Run the main class with JavaExecTask"
+            classpath = sourceSets.main.runtimeClasspath
+            main = javaMainClass
+            standardInput = System.in
+            args moduleType, moduleName
+        }
+
+    }
+
+}
+

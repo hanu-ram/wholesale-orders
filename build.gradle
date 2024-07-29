@@ -1,0 +1,155 @@
+buildscript {
+    repositories {
+        mavenCentral()
+    }
+    dependencies {
+        classpath "io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE"
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:2.5.3")
+        classpath "com.palantir.gradle.docker:gradle-docker:0.27.0"
+    }
+}
+plugins {
+    id 'java'
+    id "com.github.spotbugs" version "4.7.2"
+    id 'pmd'
+    id 'jacoco'
+    id "org.sonarqube" version "3.0"
+}
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+subprojects {
+    apply plugin: 'java-library'
+    apply plugin: 'checkstyle'
+    apply plugin: 'com.palantir.docker'
+    apply plugin: 'com.github.spotbugs'
+    apply plugin: 'pmd'
+    apply plugin: 'jacoco'
+    apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'org.springframework.boot'
+
+    sourceCompatibility = '1.8'
+    group = 'com.levi.api'
+    version = '0.0.1-SNAPSHOT'
+    repositories {
+        mavenCentral()
+    }
+    sourceSets {
+        integration {
+            java {
+                compileClasspath += main.output + test.output
+                runtimeClasspath += main.output + test.output
+                srcDir file('src/itest/java')
+            }
+            resources.srcDir file('src/itest/resources')
+        }
+
+    }
+
+    checkstyle {
+        configFile file('../config/checkstyle/checkstyle.xml')
+        checkstyleTest.enabled = false
+        sourceSets = [sourceSets.main]
+    }
+
+    spotbugsMain {
+        spotbugsTest.enabled = false
+        spotbugsIntegration.enabled = false
+        excludeFilter = rootProject.file('config/findbugs-exclude.xml')
+        reports {
+            html.enabled = true
+        }
+    }
+    task integrationTest(type: Test) {
+        useJUnitPlatform()
+        testClassesDirs = sourceSets.integration.output.classesDirs
+        classpath = sourceSets.integration.runtimeClasspath
+        finalizedBy(tasks.jacocoTestReport)
+
+    }
+
+    configurations {
+        integrationImplementation.extendsFrom testImplementation
+        integrationRunTime.extendsFrom testRunTime
+    }
+    pmd {
+        ignoreFailures = true
+        pmdTest.enabled = false
+        ruleSetFiles = getRootProject().files('config/pmd-ruleset.xml')
+
+    }
+
+    jar {
+        enabled = false
+    }
+    dependencies {
+
+        implementation group: 'com.hynnet', name: 'jacob', version: '1.18'
+        spotbugsPlugins 'com.h3xstream.findsecbugs:findsecbugs-plugin:1.10.1'
+        testImplementation group: 'com.tngtech.archunit', name: 'archunit-junit5-api', version: '0.20.1'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    }
+    tasks.test {
+        finalizedBy(tasks.jacocoTestReport)
+    }
+    tasks.jacocoTestReport {
+        dependsOn(tasks.test)
+        dependsOn(tasks.integrationTest)
+    }
+    test {
+        useJUnitPlatform()
+    }
+
+    jacocoTestReport {
+        reports {
+            xml.enabled true
+            html.enabled true
+            csv.enabled true
+        }
+        getExecutionData().setFrom(fileTree(buildDir).include("/jacoco/*.exec"))
+        afterEvaluate {
+            classDirectories.setFrom(files(classDirectories.files.collect {
+                fileTree(dir: it, exclude: [
+                        "**/domain/*",
+                        "**/entity/*",
+                        "**/exception/*",
+                        "**/exceptions/*",
+                        "**/dto/*",
+                        "**/config/*",
+                        "**/app/*"
+                ])
+            }))
+        }
+    }
+
+    docker {
+        name project.name
+        dockerfile file('../Dockerfile')
+        files bootJar.archiveFile.get()
+        buildArgs(['JAR_FILE': "${bootJar.archiveFileName.get()}"])
+    }.dependsOn(build)
+}
+
+sonarqube {
+    properties {
+        property 'sonar.exclusions', [
+                "**/domain/*",
+                "**/entity/*",
+                "**/exception/*",
+                "**/exceptions/*",
+                "**/dto/*",
+                "**/config/*",
+                "**/app/*",
+                "**/dao/*",
+                "**/model/*",
+                "**/mapper/*",
+                "**/constant/*",
+                "**/repository/*",
+                "**/service-generator/*",
+                "**/order-retry-lambda/*"
+        ]
+    }
+}

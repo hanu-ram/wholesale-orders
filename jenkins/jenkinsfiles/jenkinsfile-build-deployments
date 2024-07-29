@@ -1,0 +1,106 @@
+pipeline {
+    agent any
+
+    environment {
+        ecr_repo_name = "wholesale-microservice"
+        port = "8080"
+        ECR = "${aws_account_id}.dkr.ecr.${region}.amazonaws.com"
+        image_tag = "${service}_${BUILD_NUMBER}"
+        project_dir  = "wholesale-orders/"
+    }
+
+    stages {
+        stage ('Git Checkout') {
+            steps {
+                step([$class: 'WsCleanup'])
+                checkout scm
+            }
+        }
+        
+        stage ('Sonarqube Analysis') {
+            when {
+                expression { params.sonar_scan == 'true' }
+            }
+            steps {
+            dir(project_dir) {
+                withSonarQubeEnv('sonarqube') {
+                    sh './gradlew build sonarqube' 
+                }
+              }
+            }
+        }
+
+        stage ("SonarQube Gatekeeper") {
+            when {
+                expression { params.sonar_scan == 'true' }
+            }
+            steps {
+            dir(project_dir) {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    script {
+                        sh 'sleep 10'
+                        STAGE_NAME = "SonarQube Gatekeeper"
+                        def qualitygate = waitForQualityGate()
+                        if (qualitygate.status != "OK") {
+                            error "Pipeline aborted due to quality gate coverage failure: ${qualitygate.status}"
+                        } 
+                    }
+                  }
+                }
+            }
+        }
+
+        stage ('Docker build') {
+            steps {
+                dir(project_dir) {
+                    sh './gradlew clean :${service}:build'
+                    sh './gradlew :${service}:docker'
+                    sh 'docker tag  ${service} ${ECR}/${ecr_repo_name}:${image_tag}' 
+                }
+            }
+        }
+
+        stage ('Docker Login') {
+            steps {
+                dir(project_dir) {
+                    sh '$(aws ecr get-login --no-include-email --region ${region})'
+                }
+            }
+        }
+
+        stage ('Docker Push') {
+            steps {
+                dir(project_dir) {
+                    sh "docker push ${ECR}/${ecr_repo_name}:${image_tag}"
+                }
+            }
+        }
+
+        stage ('Docker Clean') {
+            steps {
+                dir(project_dir) {
+                    sh 'docker rmi -f ${service}'
+                    sh "docker rmi -f ${ECR}/${ecr_repo_name}:${image_tag}"
+                }
+            }
+        }
+
+        stage ('Deploy ECS') {
+            when {
+                expression {params.deploy_ecs == 'true' }
+            }
+            steps {
+                script {
+                    build (job: "${deploy_job_name}", wait: true,
+                    parameters: [
+                    string(name: 'environment', value: environment),
+                    string(name: 'image_tag', value: BUILD_NUMBER),
+                    string(name: 'service', value: service),
+                    string(name: 'region', value: region),
+                    string(name: 'bucket', value: bucket)
+                    ])
+                }
+            }
+        }
+    }
+}

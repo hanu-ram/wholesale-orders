@@ -1,0 +1,2 @@
+AccountNo,PO,SD,ProductCode,ConsumerGroup,Category,DocDate,RDDDate,CXLDate,ApproxDueInDate,Plant,ProductName,CustomerPrice,WholesalePrice,IPA,LeviPrice,Units,StockType,VIR,VAS Add,Off Price,Excess Inv Dis,LateShip Dis,Pre-Book Dis,Quantity,Currency,OrderValue,Rejection Reson
+1002189,1129,51911974,00517-0216,HOMER MENS & BOYS STORE,LEVIS,MEN,BOTTOMS,28/12/21 0:00,28/12/21 0:00,10/02/22 0:00,06/04/22 0:00,2006,517 BOOTCUT RINSE 37741,15.45,18.03,0,18.03,2,L,424,,,,,,1,USD,2379.52,J0

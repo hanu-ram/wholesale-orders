@@ -1,0 +1,6 @@
+
+dependencies {
+    api project(':common-module')
+
+    testImplementation project(path: ':common-module', configuration: 'testOutput')
+}
